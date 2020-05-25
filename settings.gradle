@@ -1,0 +1,3 @@
+rootProject.name='Camera2ColorPickerDemo'
+include ':app'
+include ':library'
