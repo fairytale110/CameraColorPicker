@@ -6,6 +6,9 @@ import android.os.Bundle
 import kotlinx.android.synthetic.main.activity_main.*
 import tech.nicesky.library.PickerActivity
 
+/**
+ *  https://stackoverflow.com/questions/59613886/android-camerax-color-detection
+ */
 class DemoMainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
