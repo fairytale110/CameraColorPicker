@@ -20,23 +20,22 @@ class Util {
     companion object{
         fun getSaveBitmapPath(context: Context): String {
             return if (Environment.getExternalStorageState() == Environment.MEDIA_MOUNTED) {
-                var path =
-                    Environment.getExternalStorageDirectory().path + "/tech.nicesky.camera2colorpicker/Temp/"
+                var path = Environment.getExternalStorageDirectory().path + "/tech.nicesky.camera2colorpicker/Temp/"
                 val dirFile = File(path)
                 if (!dirFile.exists()) {
                     dirFile.mkdirs()
                 }
-                /*if(dirFile.exists()){
-                        File files[]=dirFile.listFiles();
-                        //超过10个后删除
-                        if(files.length>=150){
-                            for (int i=0;i<files.length;i++){
-                                files[i].delete();
-                            }
+                if(dirFile.exists()){
+                    val files = dirFile.listFiles();
+                    //超过10个后删除
+                    val fSize = files?.size ?: 0
+                    if (fSize >= 10) {
+                        for (idx in 0 until fSize step 1) {
+                            files!![idx].delete()
                         }
-                    }*/
-                val time =
-                    SimpleDateFormat("yyyyMMddHHmmss", Locale.CHINESE).format(Date()) + ".jpg"
+                    }
+                }
+                val time = SimpleDateFormat("yyyyMMddHHmmss", Locale.CHINESE).format(Date()) + ".jpg"
                 val file = File(path, time)
                 if (!file.exists()) {
                     try {
@@ -45,7 +44,7 @@ class Util {
                         e.printStackTrace()
                     }
                 }
-                path = path + time
+                path += time
                 path
             } else {
                 context.filesDir.path

@@ -28,8 +28,4 @@ Pick color from camera preview or image
 
 效果图设计，感谢：[dimest.c](https://www.instagram.com/p/By0N5lTgWOh/)
 
->.
 >
->
->
-> s

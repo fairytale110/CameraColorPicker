@@ -62,13 +62,11 @@
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recycler_colors"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:background="@android:color/holo_green_light"
+        android:layout_height="50dp"
         app:layout_constraintBottom_toBottomOf="@id/img_pick_color"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_weight="1"
-        app:layout_constraintStart_toEndOf="@id/img_pick_color"
-        app:layout_constraintTop_toTopOf="@id/img_pick_color" />
+        app:layout_constraintStart_toEndOf="@id/img_pick_color" />
 
     <androidx.appcompat.widget.AppCompatImageButton
         android:id="@+id/btn_exit"
@@ -98,7 +96,64 @@
         app:layout_constraintBottom_toTopOf="@id/img_pick_color"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
+        android:visibility="gone"
         app:layout_constraintTop_toBottomOf="@id/btn_exit"
         app:layout_constraintVertical_weight="1" />
 
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/img_preview"
+        android:layout_width="wrap_content"
+        android:visibility="gone"
+        android:layout_height="0dp"
+        android:layout_marginBottom="20dp"
+        app:layout_constraintBottom_toTopOf="@id/img_pick_color"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/btn_exit"
+        app:layout_constraintVertical_weight="1" />
+
+
+    <LinearLayout
+        android:id="@+id/lin_1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        app:layout_constraintBottom_toTopOf="@id/img_mark"
+        app:layout_constraintEnd_toEndOf="@+id/texture_preview"
+        app:layout_constraintStart_toStartOf="@+id/texture_preview">
+
+        <androidx.appcompat.widget.AppCompatImageView
+            android:id="@+id/img_color"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:background="@android:color/white" />
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/txt_color"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:background="@android:color/black"
+            android:gravity="center"
+            android:minWidth="100dp"
+            android:paddingStart="5dp"
+            android:paddingEnd="5dp"
+            android:text="#000000"
+            android:textColor="@android:color/white"
+            android:textSize="18sp" />
+
+    </LinearLayout>
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/img_mark"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_marginTop="10dp"
+        android:background="@android:color/white"
+        app:layout_constraintBottom_toBottomOf="@id/texture_preview"
+        app:layout_constraintEnd_toEndOf="@id/texture_preview"
+        app:layout_constraintStart_toStartOf="@id/texture_preview"
+        app:layout_constraintTop_toTopOf="@id/texture_preview" />
 </androidx.constraintlayout.widget.ConstraintLayout>

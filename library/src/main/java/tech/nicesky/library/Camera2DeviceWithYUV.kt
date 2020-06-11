@@ -2,11 +2,12 @@ package tech.nicesky.library
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.ImageFormat
 import android.hardware.camera2.*
+import android.media.Image
 import android.media.ImageReader
 import android.os.Build
 import android.os.Handler
@@ -14,8 +15,9 @@ import android.os.HandlerThread
 import android.util.Log
 import android.view.Surface
 import androidx.core.app.ActivityCompat
-import java.io.File
-import java.io.FileOutputStream
+import tech.nicesky.camera2capture.YUV.ColorConvertUtil
+import tech.nicesky.camera2capture.YUV.FileUtil
+import java.nio.ByteBuffer
 import java.util.*
 import java.util.concurrent.Executors
 
@@ -29,25 +31,26 @@ import java.util.concurrent.Executors
     "DEPRECATED_IDENTITY_EQUALS",
     "LongLogTag"
 )
-class Camera2Device {
+class Camera2DeviceWithYUV {
     private var context: Context? = null
     private var manager: CameraManager? = null
-    var cameraId: String = ""
+    private var cameraId: String = ""
     private var device: CameraDevice? = null
     private var photoSurface: Surface? = null
     private var imageReader: ImageReader? = null
-    private var textureView: AutoFitTextureView? = null
-    private var previewSurface: Surface? = null
     private var previewRequestBuilder: CaptureRequest.Builder? = null
     private var previewRequest: CaptureRequest? = null
     private var captureSession: CameraCaptureSession? = null
 
+    private var previewSurface: Surface? = null
+    private var textureView: AutoFitTextureView? = null
     private var captureReady = false
     private var surfaceTextureAvailable = false
-    private val executorService = Executors.newSingleThreadExecutor()
+    private val executorService = Executors.newFixedThreadPool(5)
 
     private var mHandlerThread: HandlerThread? = null
     private var handler: Handler? = null
+    var cameraOpened = false
 
     private var sessionCallback: CameraCaptureSession.StateCallback =
         object : CameraCaptureSession.StateCallback() {
@@ -66,26 +69,25 @@ class Camera2Device {
                 captureSession = cameraCaptureSession
                 try {
                     // 设置自动对焦模式
-                    previewRequestBuilder?.set(
+                    previewRequestBuilder!!.set(
                         CaptureRequest.CONTROL_AF_MODE,
                         CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
                     )
                     // 设置自动曝光模式
-                    previewRequestBuilder?.set(
+                    previewRequestBuilder!!.set(
                         CaptureRequest.CONTROL_AE_MODE,
                         CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH
                     )
                     // previewRequestBuilder!!.set(CaptureRequest.JPEG_ORIENTATION, 90)
                     // 开始显示相机预览
-                    previewRequest = previewRequestBuilder?.build()
+                    previewRequest = previewRequestBuilder!!.build()
                     // 设置预览时连续捕获图像数据
-                    previewRequest?.let {
-                        captureSession?.let {
-                            it.setRepeatingRequest(previewRequest!!, null, handler)
-                            captureReady = true
-                        }
-                    }
-                } catch (e: Exception) {
+                    captureSession!!.setRepeatingRequest(previewRequest!!, null, handler) // ④
+                    //handler.postDelayed({
+                    captureReady = true
+                    // handler?.sendEmptyMessage(1)
+                    //}, 10)
+                } catch (e: CameraAccessException) {
                     e.printStackTrace()
                     captureListener?.onFinish(false, cameraId, "")
                 }
@@ -168,8 +170,9 @@ class Camera2Device {
 
     public fun shoot(captureListener: CaptureListener?) {
         Log.e("Camera2Entity $cameraId", "shoot==>")
-        this.captureListener = captureListener
-        // 打开摄像头
+        if (captureListener != null){
+            this.captureListener = captureListener
+        }
         handler?.sendEmptyMessage(0)
     }
 
@@ -208,7 +211,6 @@ class Camera2Device {
             val captureRequestBuilder: CaptureRequest.Builder = device!!.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
             // 将imageReader的surface作为CaptureRequest.Builder的目标
             captureRequestBuilder.addTarget(photoSurface!!)
-            captureRequestBuilder.addTarget(previewSurface!!)
             // 设置自动对焦模式
             captureRequestBuilder.set(
                 CaptureRequest.CONTROL_AF_MODE,
@@ -254,12 +256,12 @@ class Camera2Device {
             "Camera2Entity $cameraId",
             " createCameraPreviewSession() ==> thread is ${Thread.currentThread().name}"
         )
+//        surfaceTexture = textureView?.surfaceTexture
+//        textureSurface = Surface(surfaceTexture)
         previewSurface = Surface(textureView?.surfaceTexture)
         photoSurface = imageReader?.surface
         // 创建作为预览的CaptureRequest.Builder
-        // 创建作为预览的CaptureRequest.Builder
         previewRequestBuilder = device?.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-        // 将textureView的surface作为CaptureRequest.Builder的目标
         // 将textureView的surface作为CaptureRequest.Builder的目标
         previewRequestBuilder?.addTarget(previewSurface!!)
         previewRequestBuilder?.addTarget(photoSurface!!)
@@ -275,107 +277,126 @@ class Camera2Device {
         Log.e("Camera2Entity $cameraId", " setUpCameraOutputs() ==>")
         val characteristics = manager?.getCameraCharacteristics(cameraId);
         val streamConfigurationMap = characteristics?.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-
-//        val spSize = streamConfigurationMap!!.getOutputSizes(ImageFormat.JPEG).toList()
+//        val spSize = streamConfigurationMap!!.getOutputSizes(ImageFormat.YUV_420_888).toList()
 //        println("支持的size ==============================")
 //        for (idx in 0 until spSize.size){
 //            println("支持的size：w=${spSize[idx].width} h=${spSize[idx].height}")
 //        }
-        val largest = Collections.max(streamConfigurationMap!!.getOutputSizes(ImageFormat.JPEG).toList(), CompareSizesByArea());
-
-        imageReader = ImageReader.newInstance(largest.width, largest.height, ImageFormat.JPEG, 6)
+        val largest = Collections.max(streamConfigurationMap!!.getOutputSizes(ImageFormat.YUV_420_888).toList(), CompareSizesByArea());
+        println("size: width=${largest.width} hright= ${largest.height}")
+//        width = largest.width
+//        height = largest.height
+        width = 640
+        height = 480
+//        imageReader = ImageReader.newInstance(1920, 1080, ImageFormat.JPEG, 50)
+        imageReader = ImageReader.newInstance(width, height, ImageFormat.YUV_420_888, 12)
         imageReader?.setOnImageAvailableListener(photoReaderImgListener, null)
     }
 
-    private var SHOOT = false
+    private var width = 0
+    private var height = 0
+
+    private @Volatile var SHOOT = false
+    private @Volatile var COLOR_DETECT_FINISHED = true
     private var frameIndex = 0
 
-    var cameraOpened = false
-
+    private var mYuvBytes: ByteArray? = null
     @SuppressLint("LongLogTag")
     private val photoReaderImgListener = ImageReader.OnImageAvailableListener { reader: ImageReader? ->
-//            Log.e("Camera2Entity $cameraId", "onImageAvailable() --->")
-            reader?.let {
-                cameraOpened = true
-//                Log.e("Camera2Entity $cameraId", " onImageAvailable() ==> != null ")
-                // 保存图片，释放资源，继续下一个摄像头
-                if (frameIndex < 1){
-                    frameIndex++
-                    it.acquireLatestImage()?.close()
-                    return@let
-                }
-                   // println("frameIndex = $frameIndex")
-                if (frameIndex > 1){
-                    it.acquireLatestImage()?.close()
-                    return@let
-                }
-                // 获取捕获的照片数据 ,如果模糊，image close，拿下一帧，自行调试
-                   // println("SHOOT = $SHOOT")
-                if (!SHOOT){
-                    it.acquireLatestImage()?.close()
-                    return@let
-                }
-               // executorService.submit {
-                    println("executorService save")
-                    SHOOT = false
-                    var image = it.acquireLatestImage()
-                    if (image == null) {
-                        Log.e(
-                            "Camera2Entity $cameraId",
-                            " onImageAvailable() ==> acquireNextImage == null "
-                        )
-                        captureListener?.onFinish(false, cameraId, "")
-                        return@let
-                    }
-                    val buffer = image.planes[0].buffer
-                    val bytes = ByteArray(buffer.remaining())
-                    buffer[bytes]
+        // Log.e("Camera2Entity $cameraId", "onImageAvailable() --->")
+        reader?.let {
+           // Log.e("Camera2Entity $cameraId", " onImageAvailable() ==> != null ")
 
-                    val path: String = Util.getSaveBitmapPath(context!!)
-                    // 使用IO流将照片写入指定文件
-                    //File file = new File(getExternalFilesDir(null), "pic.jpg");
-                    // 使用IO流将照片写入指定文件
-                    //File file = new File(getExternalFilesDir(null), "pic.jpg");
-                    val file = File(path)
-                    var output: FileOutputStream? = null
-                    var success = false
-                    try {
-                        output = FileOutputStream(file)
-                        output.write(bytes)
-                        output.flush()
-                        Log.e("Camera2Entity $cameraId ", " onImageAvailable() 保存: 成功")
-                        success = true
-                        //captureListener?.onFinish(true, cameraId,  path)
-                    } catch (e: Exception) {
-                        if (BuildConfig.DEBUG) {
-                            e.printStackTrace()
-                        }
-                        //captureListener?.onFinish(false,  cameraId, "")
-                    } finally {
-                        frameIndex = 0
-                        try {
-                            output?.close()
-                            output = null
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                        image.close()
-                        image = null
+            cameraOpened = true
 
+            // 保存图片，释放资源，继续下一个摄像头
+            if (frameIndex < 1){
+                frameIndex++
+                it.acquireLatestImage().close()
+                return@let
+            }
+            val image: Image? = try{ it.acquireLatestImage()} catch (exp: Exception){ null}
+            if (image == null) {
+                Log.e( "Camera2Entity $cameraId", " onImageAvailable() ==> acquireNextImage == null " )
+                captureListener?.onFinish(false, cameraId, "")
+                return@let
+            }
+            if (!COLOR_DETECT_FINISHED){
+                image.close()
+                return@let
+            }
+            val plansTemp = image.planes
+            if (mYuvBytes == null) {
+                // YUV420 大小总是 width * height * 3 / 2
+                mYuvBytes = ByteArray(width * height * 3 / 2)
+            }
+
+            // YUV_420_888
+            val yBuffer     = plansTemp[0].buffer
+            var yLen        = width * height
+            yBuffer.get(mYuvBytes!!, 0, yLen)
+
+            val uBuffer     = plansTemp[1].buffer
+            var pixelStride = plansTemp[1].pixelStride
+            yLen            = oa(uBuffer, yLen, pixelStride)
+            val vBuffer     = plansTemp[2].buffer
+            pixelStride     = plansTemp[2].pixelStride
+            oa(vBuffer, yLen, pixelStride)
+
+            executorService.submit {
+                if (!COLOR_DETECT_FINISHED) return@submit
+                COLOR_DETECT_FINISHED = false
+                val bt = mYuvBytes!!.copyOf()
+
+                try{
+                    var success         = false
+                    val bitmap: Bitmap? = ColorConvertUtil.yuv420pToBitmap(bt, width, height)
+
+                    if (SHOOT){
+                        COLOR_DETECT_FINISHED = true
+                        SHOOT = false
+                        val path            = Util.getSaveBitmapPath(context!!)
+                        success = FileUtil.saveBitmap(bitmap, path)
                         handler?.let {
-                            val message = it.obtainMessage()
-                            message.what = 2
-                            message.obj = if (success) path else ""
-                            message.arg1 = if (success) 1 else 0
+                            val message     = it.obtainMessage()
+                            message.what    = 2
+                            message.obj     = if (success) path else ""
+                            message.arg1    = if (success) 1 else 0
                             it.sendMessage(message)
                         }
-
+                    }else{
+                        val color = Detector.color(bitmap, width/2F, height/2F)
+                        if (!color.isNullOrEmpty())
+                        captureListener?.onDetected(color, width/2, height/2)
                     }
-              //  }
-            }?:run {
-                captureListener?.onFinish(false, cameraId, "")
+                    bitmap?.recycle()
+                    mYuvBytes = null
+                }catch (exp: Exception){
+                    exp.printStackTrace()
+                }
+                COLOR_DETECT_FINISHED = true
+            }
+            // 获取捕获的照片数据 ,如果模糊，image close，拿下一帧，自行调试
+            image.close()
+        }?:run {
+            captureListener?.onFinish(false, cameraId, "")
+        }
+    }
+
+    private fun oa(vBuffer: ByteBuffer, yLenVal: Int, pixelStride: Int): Int{
+        var j = 0
+        var yLen = yLenVal
+        aa@ while  (j < vBuffer.remaining()) {
+            if (mYuvBytes != null){
+                val y = yLen++
+                if (y < mYuvBytes!!.size){
+                    mYuvBytes!![y] = vBuffer[j]
+                    j += pixelStride
+                }else break@aa
             }
         }
+        return yLen
+    }
 
     fun releaseeCamera() {
         Log.e("Camera2Entity $cameraId", " releaseCamera() ==>")
@@ -384,32 +405,14 @@ class Camera2Device {
             Util.releaseCameraSession(captureSession)
             Util.releaseCameraDevice(device)
             Util.releaseImageReader(imageReader)
-//        textureView?.surfaceTextureListener = null
             previewRequestBuilder = null
             previewRequest = null
-//        if (surfaceTexture != null) {
-//            surfaceTexture!!.release()
-//            surfaceTexture = null
-//        }
             if (photoSurface != null) {
                 photoSurface!!.release()
                 photoSurface = null
             }
             imageReader = null
-//            mHandlerThread?.quitSafely()
-//            mHandlerThread = null
-//            handler = null
             executorService.shutdownNow()
-//        if (textureSurface != null) {
-//            textureSurface!!.release()
-//            textureSurface = null
-//        }
-//        val windowManager = context?.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-//        try {
-//            windowManager.removeView(textureView)
-//        } catch (e: Exception) {
-//            e.printStackTrace()
-//        }
         } catch (e: Exception) {
             if (BuildConfig.DEBUG) {
                 e.printStackTrace()

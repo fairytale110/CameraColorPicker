@@ -8,4 +8,5 @@ package tech.nicesky.library
  */
 interface CaptureListener {
     fun onFinish(success: Boolean, cameraId: String, imgPath: String)
+    fun onDetected(colorHexString: String, x: Int, y: Int)
 }

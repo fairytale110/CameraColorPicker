@@ -15,18 +15,11 @@ android {
         versionCode rootProject.ext.android.versionCode
         versionName rootProject.ext.android.versionName
 
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-
-        externalNativeBuild {
-            cmake {
-                cppFlags "-frtti -fexceptions"
-            }
-        }
         ndk {
             abiFilters "armeabi","armeabi-v7a", "x86"
         }
-
     }
+
     buildTypes {
         release {
             debuggable false
@@ -85,9 +78,9 @@ dependencies {
     api rootProject.ext.dependencies.recyclerView
     api rootProject.ext.dependencies.constraintlayout
     api rootProject.ext.dependencies.core_ktx
-    testImplementation 'junit:junit:4.12'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.1'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
+   // testImplementation 'junit:junit:4.12'
+   // androidTestImplementation 'androidx.test.ext:junit:1.1.1'
+  //  androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
 
     implementation project(':library')
 }
