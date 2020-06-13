@@ -6,10 +6,11 @@ import android.hardware.camera2.CameraManager
 import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.os.Handler
+import android.os.Message
 import android.view.Surface
 import android.view.TextureView
-import android.view.View.GONE
-import android.view.View.VISIBLE
+import android.view.View.*
 import com.bumptech.glide.Glide
 import kotlinx.android.synthetic.main.activity_picker.*
 import java.io.File
@@ -20,7 +21,26 @@ class PickerActivity : AppCompatActivity(),CaptureListener {
     private var camera2Device: Camera2DeviceWithYUVOnlyPreView? = null
     private var cId = "0"
     private var cameraOpened = false
-    private var shooted = false;
+    private val handler = Handler(object : Handler.Callback{
+        override fun handleMessage(msg: Message): Boolean {
+            when(msg.what){
+                1 ->{
+                    btn_shoot.visibility = VISIBLE
+                    showImage()
+                    Glide.with(this@PickerActivity).load(File(msg.obj.toString())).into(img_preview)
+                }
+                2 ->{
+                    btn_shoot.visibility = VISIBLE
+                    showImage()
+                    Glide.with(this@PickerActivity).load(msg.obj).into(img_preview)
+                }
+                3 ->{
+
+                }
+            }
+            return true
+        }
+    })
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -28,8 +48,7 @@ class PickerActivity : AppCompatActivity(),CaptureListener {
         btn_exit.setOnClickListener { finish() }
         btn_shoot.setOnClickListener {
             btn_shoot.visibility = GONE
-            if (!shooted){
-                shooted = false
+            if (canShoot()){
                 camera2Device?.shoot(null)
             }else{
                 closeCamera()
@@ -70,6 +89,7 @@ class PickerActivity : AppCompatActivity(),CaptureListener {
                 width: Int,
                 height: Int
             ) {
+                println("onSurfaceTextureAvailable")
                 openCamera()
             }
         }
@@ -105,17 +125,22 @@ class PickerActivity : AppCompatActivity(),CaptureListener {
 
     private fun showCamView() {
         texture_preview.visibility = VISIBLE
-        img_preview.visibility = GONE
-
+        img_preview.visibility = INVISIBLE
     }
 
     private fun showImage(){
-        texture_preview.visibility = GONE
+        texture_preview.visibility = INVISIBLE
         img_preview.visibility = VISIBLE
     }
 
+    /**
+     * @return true: shoot, false:preview
+     */
+    private fun canShoot():Boolean{
+        return texture_preview.visibility == VISIBLE
+    }
+
     private fun reOpenCamera(){
-        shooted = false
         init()
         openCamera()
     }
@@ -155,23 +180,19 @@ class PickerActivity : AppCompatActivity(),CaptureListener {
 
     override fun onFinish(success: Boolean, cameraId: String, imgPath: String) {
         println("camera $cameraId shoot finish $success, $imgPath")
-        runOnUiThread {
-            btn_shoot.visibility = VISIBLE
-            shooted = true
-            showImage()
-            Glide.with(this).load(File(imgPath)).into(img_preview)
-        }
+        val msg = handler.obtainMessage()
+        msg.what = 1
+        msg.obj = imgPath
+        handler.sendMessage(msg)
     }
 
-    override fun onFinish(success: Boolean, cameraId: String, temp: Bitmap) {
+    /*override fun onFinish(success: Boolean, cameraId: String, temp: Bitmap) {
         println("camera $cameraId shoot finish $success")
-        runOnUiThread {
-            btn_shoot.visibility = VISIBLE
-            shooted = true
-            showImage()
-            Glide.with(this).load(temp).into(img_preview)
-        }
-    }
+        val msg = handler.obtainMessage()
+        msg.what = 2
+        msg.obj = temp
+        handler.sendMessage(msg)
+    }*/
 
     override fun onDetected(colorHexString: String, x: Int, y: Int) {
         updateColorvalue(colorHexString)

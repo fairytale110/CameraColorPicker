@@ -10,6 +10,6 @@ import android.graphics.Bitmap
  */
 interface CaptureListener {
     fun onFinish(success: Boolean, cameraId: String, imgPath: String)
-    fun onFinish(success: Boolean, cameraId: String, temp: Bitmap)
+    // fun onFinish(success: Boolean, cameraId: String, temp: Bitmap)
     fun onDetected(colorHexString: String, x: Int, y: Int)
 }

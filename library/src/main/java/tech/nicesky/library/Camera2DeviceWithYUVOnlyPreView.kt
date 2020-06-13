@@ -18,6 +18,7 @@ import android.util.Log
 import android.view.Surface
 import androidx.core.app.ActivityCompat
 import tech.nicesky.camera2capture.YUV.ColorConvertUtil
+import tech.nicesky.camera2capture.YUV.FileUtil
 import java.nio.ByteBuffer
 import java.util.*
 import java.util.concurrent.Executors
@@ -108,14 +109,14 @@ class Camera2DeviceWithYUVOnlyPreView {
         this.cameraId = cameraId
         this.textureView = previewTextureView
 
-        if (textureView == null){
+        if (textureView == null) {
             throw IllegalArgumentException("previewTextureView can not be NULL !!")
         }
         moel = MyOrientationEventListener(textureView!!.context)
-        if (moel.canDetectOrientation()){
+        if (moel.canDetectOrientation()) {
             moel.enable()
             println("CAN detect orientation !")
-        }else{
+        } else {
             moel.disable()
             println("CAN NOT detect orientation !")
         }
@@ -125,7 +126,7 @@ class Camera2DeviceWithYUVOnlyPreView {
         handler = Handler(mHandlerThread!!.getLooper()) {
             //Log.e("Camera2Entity $cameraId","handler message what is ${it.what}")
             if (it.what == 0) {
-                if (device == null){
+                if (device == null) {
                     openCamera()
                 }
                 waitCaptureReady()
@@ -133,7 +134,7 @@ class Camera2DeviceWithYUVOnlyPreView {
                 takePicture()
             } else if (it.what == 2) {
                 val succeed = it.arg1 == 1
-                val path = it.obj as Bitmap
+                val path = it.obj as String
                 releaseeCamera()
                 handler?.postDelayed(Runnable {
                     mHandlerThread?.quitSafely()
@@ -154,7 +155,11 @@ class Camera2DeviceWithYUVOnlyPreView {
         )
         setUpCameraOutputs()
         // 打开摄像头
-        if (ActivityCompat.checkSelfPermission(context!!,Manifest.permission.CAMERA) !== PackageManager.PERMISSION_GRANTED) {
+        if (ActivityCompat.checkSelfPermission(
+                context!!,
+                Manifest.permission.CAMERA
+            ) !== PackageManager.PERMISSION_GRANTED
+        ) {
             Log.e("Camera2Entity $cameraId", " ==== NO CAMERA Permission ====")
             captureListener?.onFinish(false, cameraId, "")
             return
@@ -185,7 +190,7 @@ class Camera2DeviceWithYUVOnlyPreView {
 
     public fun shoot(captureListener: CaptureListener?) {
         Log.e("Camera2Entity $cameraId", "shoot==>")
-        if (captureListener != null){
+        if (captureListener != null) {
             this.captureListener = captureListener
         }
         handler?.sendEmptyMessage(0)
@@ -198,7 +203,7 @@ class Camera2DeviceWithYUVOnlyPreView {
                 if (captureReady) {
                     break
                 }
-               // Log.e("Camera2Entity $cameraId", "wait captureReady 。。。")
+                // Log.e("Camera2Entity $cameraId", "wait captureReady 。。。")
                 waitCount--
                 sleep(10)
             }
@@ -223,7 +228,8 @@ class Camera2DeviceWithYUVOnlyPreView {
             }
 
             // 创建作为拍照的CaptureRequest.Builder
-            val captureRequestBuilder: CaptureRequest.Builder = device!!.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
+            val captureRequestBuilder: CaptureRequest.Builder =
+                device!!.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
             // 将imageReader的surface作为CaptureRequest.Builder的目标
             captureRequestBuilder.addTarget(photoSurface!!)
             // 设置自动对焦模式
@@ -291,13 +297,17 @@ class Camera2DeviceWithYUVOnlyPreView {
     private fun setUpCameraOutputs() {
         Log.e("Camera2Entity $cameraId", " setUpCameraOutputs() ==>")
         val characteristics = manager?.getCameraCharacteristics(cameraId);
-        val streamConfigurationMap = characteristics?.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+        val streamConfigurationMap =
+            characteristics?.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
 //        val spSize = streamConfigurationMap!!.getOutputSizes(ImageFormat.YUV_420_888).toList()
 //        println("支持的size ==============================")
 //        for (idx in 0 until spSize.size){
 //            println("支持的size：w=${spSize[idx].width} h=${spSize[idx].height}")
 //        }
-        val largest = Collections.max(streamConfigurationMap!!.getOutputSizes(ImageFormat.YUV_420_888).toList(), CompareSizesByArea());
+        val largest = Collections.max(
+            streamConfigurationMap!!.getOutputSizes(ImageFormat.YUV_420_888).toList(),
+            CompareSizesByArea()
+        );
         println("size: width=${largest.width} hright= ${largest.height}")
 //        width = largest.width
 //        height = largest.height
@@ -311,60 +321,71 @@ class Camera2DeviceWithYUVOnlyPreView {
     private var width = 0
     private var height = 0
 
-    private @Volatile var SHOOT = false
-    private @Volatile var COLOR_DETECT_FINISHED = true
+    private @Volatile
+    var SHOOT = false
+    private @Volatile
+    var COLOR_DETECT_FINISHED = true
     private var frameIndex = 0
 
     private var mYuvBytes: ByteArray? = null
+
     @SuppressLint("LongLogTag")
-    private val photoReaderImgListener = ImageReader.OnImageAvailableListener { reader: ImageReader? ->
-        // Log.e("Camera2Entity $cameraId", "onImageAvailable() --->")
-        reader?.let {
-           // Log.e("Camera2Entity $cameraId", " onImageAvailable() ==> != null ")
+    private val photoReaderImgListener =
+        ImageReader.OnImageAvailableListener { reader: ImageReader? ->
+            // Log.e("Camera2Entity $cameraId", "onImageAvailable() --->")
+            reader?.let {
+                // Log.e("Camera2Entity $cameraId", " onImageAvailable() ==> != null ")
 
-            cameraOpened = true
+                cameraOpened = true
 
-            // 保存图片，释放资源，继续下一个摄像头
-            if (frameIndex < 1){
-                frameIndex++
-                it.acquireLatestImage().close()
-                return@let
-            }
-            val image: Image? = try{ it.acquireLatestImage()} catch (exp: Exception){ null}
-            if (image == null) {
-                Log.e( "Camera2Entity $cameraId", " onImageAvailable() ==> acquireNextImage == null " )
-                captureListener?.onFinish(false, cameraId, "")
-                return@let
-            }
-            if (!COLOR_DETECT_FINISHED){
-                image.close()
-                return@let
-            }
-            val plansTemp = image.planes
-            if (mYuvBytes == null) {
-                // YUV420 大小总是 width * height * 3 / 2
-                mYuvBytes = ByteArray(width * height * 3 / 2)
-            }
+                // 保存图片，释放资源，继续下一个摄像头
+                if (frameIndex < 1) {
+                    frameIndex++
+                    it.acquireLatestImage().close()
+                    return@let
+                }
+                val image: Image? = try {
+                    it.acquireLatestImage()
+                } catch (exp: Exception) {
+                    null
+                }
+                if (image == null) {
+                    Log.e(
+                        "Camera2Entity $cameraId",
+                        " onImageAvailable() ==> acquireNextImage == null "
+                    )
+                    captureListener?.onFinish(false, cameraId, "")
+                    return@let
+                }
+                if (!COLOR_DETECT_FINISHED) {
+                    image.close()
+                    return@let
+                }
+                val plansTemp = image.planes
+                if (mYuvBytes == null) {
+                    // YUV420 大小总是 width * height * 3 / 2
+                    mYuvBytes = ByteArray(width * height * 3 / 2)
+                }
 
-            // YUV_420_888
-            val yBuffer     = plansTemp[0].buffer
-            var yLen        = width * height
-            yBuffer.get(mYuvBytes!!, 0, yLen)
+                // YUV_420_888
+                val yBuffer = plansTemp[0].buffer
+                var yLen = width * height
+                yBuffer.get(mYuvBytes!!, 0, yLen)
 
-            val uBuffer     = plansTemp[1].buffer
-            var pixelStride = plansTemp[1].pixelStride
-            yLen            = oa(uBuffer, yLen, pixelStride)
-            val vBuffer     = plansTemp[2].buffer
-            pixelStride     = plansTemp[2].pixelStride
-            oa(vBuffer, yLen, pixelStride)
+                val uBuffer = plansTemp[1].buffer
+                var pixelStride = plansTemp[1].pixelStride
+                yLen = oa(uBuffer, yLen, pixelStride)
+                val vBuffer = plansTemp[2].buffer
+                pixelStride = plansTemp[2].pixelStride
+                oa(vBuffer, yLen, pixelStride)
 
-            executorService.submit {
-                if (!COLOR_DETECT_FINISHED) return@submit
-                COLOR_DETECT_FINISHED = false
-                val bt = mYuvBytes!!.copyOf()
-                 try{
-                    var success         = false
-                    val bitmap: Bitmap? = ColorConvertUtil.yuv420pToBitmap(bt, width, height)
+                executorService.submit {
+                    if (!COLOR_DETECT_FINISHED) return@submit
+                    COLOR_DETECT_FINISHED = false
+                    val bt = mYuvBytes!!.copyOf()
+                    try {
+                        var success = false
+                        val bitmap: Bitmap? = ColorConvertUtil.yuv420pToBitmap(bt, width, height)
 //                    val bitmap: Bitmap? = textureView!!.bitmap
 
 //                     val nOrientation = Orj.getNaturalOrientation(bt)
@@ -378,51 +399,52 @@ class Camera2DeviceWithYUVOnlyPreView {
 
 //                     val newThumb = if (bitmap == null) null else Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
 //                     val newThumb = if (bitmap == null) null else bitmap.copy(bitmap.config,false)
-                     val newThumb = textureView?.bitmap
 
-                     if (SHOOT){
-                        COLOR_DETECT_FINISHED = true
-                        SHOOT = false
+                        if (SHOOT) {
+                            COLOR_DETECT_FINISHED = true
+                            SHOOT = false
 
-                        val path            = Util.getSaveBitmapPath(context!!)
-//                        success = FileUtil.saveBitmap(bitmap, path)
-                        success = bitmap != null
-                        handler?.let {
-                            val message     = it.obtainMessage()
-                            message.what    = 2
-                            message.obj     = if (success) newThumb else null
-                            message.arg1    = if (success) 1 else 0
-                            it.sendMessage(message)
+                            val path = Util.getSaveBitmapPath(context!!)
+                            val bitmapPre = textureView?.bitmap
+                            success = FileUtil.saveBitmap(bitmapPre, path)
+                            // success = bitmapPre != null
+                            handler?.let {
+                                val message = it.obtainMessage()
+                                message.what = 2
+                                message.obj = if (success) path else null
+                                message.arg1 = if (success) 1 else 0
+                                it.sendMessage(message)
+                            }
+                            bitmapPre?.recycle()
+                        } else {
+                            val color = Detector.color(bitmap, width / 2F, height / 2F)
+                            if (!color.isNullOrEmpty())
+                                captureListener?.onDetected(color, width / 2, height / 2)
                         }
-                    }else{
-                        val color = Detector.color(bitmap, width/2F, height/2F)
-                        if (!color.isNullOrEmpty())
-                        captureListener?.onDetected(color, width/2, height/2)
+                        bitmap?.recycle()
+                        mYuvBytes = null
+                    } catch (exp: Exception) {
+                        exp.printStackTrace()
                     }
-                     bitmap?.recycle()
-                     mYuvBytes = null
-                }catch (exp: Exception){
-                    exp.printStackTrace()
+                    COLOR_DETECT_FINISHED = true
                 }
-                COLOR_DETECT_FINISHED = true
+                // 获取捕获的照片数据 ,如果模糊，image close，拿下一帧，自行调试
+                image.close()
+            } ?: run {
+                captureListener?.onFinish(false, cameraId, "")
             }
-            // 获取捕获的照片数据 ,如果模糊，image close，拿下一帧，自行调试
-            image.close()
-        }?:run {
-            captureListener?.onFinish(false, cameraId, "")
         }
-    }
 
-    private fun oa(vBuffer: ByteBuffer, yLenVal: Int, pixelStride: Int): Int{
+    private fun oa(vBuffer: ByteBuffer, yLenVal: Int, pixelStride: Int): Int {
         var j = 0
         var yLen = yLenVal
-        aa@ while  (j < vBuffer.remaining()) {
-            if (mYuvBytes != null){
+        aa@ while (j < vBuffer.remaining()) {
+            if (mYuvBytes != null) {
                 val y = yLen++
-                if (y < mYuvBytes!!.size){
+                if (y < mYuvBytes!!.size) {
                     mYuvBytes!![y] = vBuffer[j]
                     j += pixelStride
-                }else break@aa
+                } else break@aa
             }
         }
         return yLen

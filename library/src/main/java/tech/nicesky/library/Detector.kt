@@ -23,4 +23,31 @@ object Detector {
             return ""
         }
     }
+
+//    palleteView.setOnTouchListener(new View.OnTouchListener() {
+//
+//        @Override
+//        public boolean onTouch(View v, MotionEvent ev) {
+//            // TODO Auto-generated method stub
+//            ImageView img = (ImageView) v;
+//
+//            final int evX = (int) ev.getX();
+//            final int evY = (int) ev.getY();
+//
+//            img.setDrawingCacheEnabled(true);
+//            Bitmap imgbmp = Bitmap.createBitmap(img.getDrawingCache());
+//            img.setDrawingCacheEnabled(false);
+//
+//            try {
+//                int pxl = imgbmp.getPixel(evX, evY);
+//
+//                pickedColorView.setBackgroundColor(pxl);
+//
+//            }catch (Exception ignore){
+//            }
+//            imgbmp.recycle();
+//
+//            return true;
+//        }
+//    });
 }
