@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.ImageFormat
 import android.graphics.Matrix
+import android.graphics.RectF
 import android.hardware.camera2.*
 import android.media.Image
 import android.media.ImageReader
@@ -17,11 +18,10 @@ import android.util.Log
 import android.view.Surface
 import androidx.core.app.ActivityCompat
 import tech.nicesky.camera2capture.YUV.ColorConvertUtil
-import tech.nicesky.camera2capture.YUV.FileUtil
-import java.lang.IllegalArgumentException
 import java.nio.ByteBuffer
 import java.util.*
 import java.util.concurrent.Executors
+
 
 /**
  * Created by fairytale110@foxmail.com at 2020/4/2 11:36
@@ -33,7 +33,7 @@ import java.util.concurrent.Executors
     "DEPRECATED_IDENTITY_EQUALS",
     "LongLogTag"
 )
-class Camera2DeviceWithYUV {
+class Camera2DeviceWithYUVOnlyPreView {
     private var context: Context? = null
     private var manager: CameraManager? = null
     private var cameraId: String = ""
@@ -133,7 +133,7 @@ class Camera2DeviceWithYUV {
                 takePicture()
             } else if (it.what == 2) {
                 val succeed = it.arg1 == 1
-                val path = it.obj as String
+                val path = it.obj as Bitmap
                 releaseeCamera()
                 handler?.postDelayed(Runnable {
                     mHandlerThread?.quitSafely()
@@ -373,20 +373,24 @@ class Camera2DeviceWithYUV {
 //                     println("nativeO = $nOrientation, dOrientation = $dOrientation, jOrientation = $jOrientation")
 //
 //                     val matrix = Matrix();
-////                     matrix.postRotate(jOrientation.toFloat());
-//                     matrix.postRotate(90F);
+//                     matrix.postRotate(jOrientation.toFloat());
+//                     matrix.postRotate(0F);
+
 //                     val newThumb = if (bitmap == null) null else Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+//                     val newThumb = if (bitmap == null) null else bitmap.copy(bitmap.config,false)
+                     val newThumb = textureView?.bitmap
 
                      if (SHOOT){
                         COLOR_DETECT_FINISHED = true
                         SHOOT = false
 
                         val path            = Util.getSaveBitmapPath(context!!)
-                        success = FileUtil.saveBitmap(bitmap, path)
+//                        success = FileUtil.saveBitmap(bitmap, path)
+                        success = bitmap != null
                         handler?.let {
                             val message     = it.obtainMessage()
                             message.what    = 2
-                            message.obj     = if (success) path else ""
+                            message.obj     = if (success) newThumb else null
                             message.arg1    = if (success) 1 else 0
                             it.sendMessage(message)
                         }
@@ -423,6 +427,7 @@ class Camera2DeviceWithYUV {
         }
         return yLen
     }
+
 
     fun releaseeCamera() {
         Log.e("Camera2Entity $cameraId", " releaseCamera() ==>")

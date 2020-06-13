@@ -1,12 +1,12 @@
 package tech.nicesky.library
 
 import android.content.Context
-import android.graphics.Color
-import android.graphics.SurfaceTexture
+import android.graphics.*
 import android.hardware.camera2.CameraManager
 import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.view.Surface
 import android.view.TextureView
 import android.view.View.GONE
 import android.view.View.VISIBLE
@@ -17,7 +17,7 @@ import java.io.File
 class PickerActivity : AppCompatActivity(),CaptureListener {
 
     private var cameraManager: CameraManager? = null
-    private var camera2Device: Camera2DeviceWithYUV? = null
+    private var camera2Device: Camera2DeviceWithYUVOnlyPreView? = null
     private var cId = "0"
     private var cameraOpened = false
     private var shooted = false;
@@ -42,7 +42,6 @@ class PickerActivity : AppCompatActivity(),CaptureListener {
             closeCamera()
             cId = if (cId.toInt() == 0) "1" else "0"
             reOpenCamera()
-            shooted = false
         }
 
         texture_preview.surfaceTextureListener = object : TextureView.SurfaceTextureListener{
@@ -74,6 +73,7 @@ class PickerActivity : AppCompatActivity(),CaptureListener {
                 openCamera()
             }
         }
+//        transformImage()
         init()
     }
 
@@ -97,7 +97,7 @@ class PickerActivity : AppCompatActivity(),CaptureListener {
         }
         cameraManager?.let {manager ->
             if (!manager.cameraIdList.isNullOrEmpty()){
-                camera2Device = Camera2DeviceWithYUV(this, cId, texture_preview)
+                camera2Device = Camera2DeviceWithYUVOnlyPreView(this, cId, texture_preview)
                 camera2Device?.captureListener = this@PickerActivity
             }
         }
@@ -106,6 +106,7 @@ class PickerActivity : AppCompatActivity(),CaptureListener {
     private fun showCamView() {
         texture_preview.visibility = VISIBLE
         img_preview.visibility = GONE
+
     }
 
     private fun showImage(){
@@ -114,6 +115,7 @@ class PickerActivity : AppCompatActivity(),CaptureListener {
     }
 
     private fun reOpenCamera(){
+        shooted = false
         init()
         openCamera()
     }
@@ -161,8 +163,61 @@ class PickerActivity : AppCompatActivity(),CaptureListener {
         }
     }
 
+    override fun onFinish(success: Boolean, cameraId: String, temp: Bitmap) {
+        println("camera $cameraId shoot finish $success")
+        runOnUiThread {
+            btn_shoot.visibility = VISIBLE
+            shooted = true
+            showImage()
+            Glide.with(this).load(temp).into(img_preview)
+        }
+    }
+
     override fun onDetected(colorHexString: String, x: Int, y: Int) {
         updateColorvalue(colorHexString)
     }
 
+    private fun transformImage() {
+        if (texture_preview == null) {
+            return
+        } else try {
+            val size = Point()
+            getWindowManager().getDefaultDisplay().getSize(size)
+            val width = img_preview.width
+            val height = img_preview.height
+            run {
+                val matrix = Matrix()
+                val rotation: Int = getWindowManager().getDefaultDisplay().getRotation()
+                val textureRectF = RectF(0F, 0F, width.toFloat(), height.toFloat())
+                val previewRectF =
+                    RectF(
+                        0F, 0F,
+                        texture_preview.height.toFloat(),
+                        texture_preview.width.toFloat()
+                    )
+                val centerX = textureRectF.centerX()
+                val centerY = textureRectF.centerY()
+                if (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270) {
+                    previewRectF.offset(
+                        centerX - previewRectF.centerX(),
+                        centerY - previewRectF.centerY()
+                    )
+                    matrix.setRectToRect(
+                        textureRectF,
+                        previewRectF,
+                        Matrix.ScaleToFit.FILL
+                    )
+                    val scale = Math.max(
+                        width.toFloat() / width,
+                        height.toFloat() / width
+                    )
+                    matrix.postScale(scale, scale, centerX, centerY)
+                    matrix.postRotate(90 * (rotation - 2).toFloat(), centerX, centerY)
+                }
+                texture_preview.setTransform(matrix)
+            }
+        } catch (e: java.lang.Exception) {
+            e.printStackTrace()
+        }
+    }
 }
